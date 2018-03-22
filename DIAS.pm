@@ -225,7 +225,7 @@ sub run {
 sub get_variant_cosmic_data {
 	my $input_csv = shift;
 	my @cols = split(',', $input_csv);
-	my $var = Sanger::Cosmic::Dias::GenomicVariantDIAS->new(chr 				=> _cosmic_to_ens_chr($cols[0]),
+	my $var = Sanger::Cosmic::Dias::GenomicVariantDIAS->new(chr 				=> $cols[0],
 															genome_ver			=> $cols[1],
 															start				=> $cols[2],
 															stop				=> $cols[3],
@@ -264,16 +264,6 @@ sub get_aa_mut_allele {
 		$allele = $line_hash->{DownstreamProtein}."*";	#adding the stop codon is cosmic notation
 	}
 	return $allele || '';
-}
-#--------------------------------------------------------------------------------#
-#TODO - Convert this in the dump script to save time here
-sub _cosmic_to_ens_chr {
-    my $chr = shift;
-
-    return 'X' if $chr==23;
-    return 'Y' if $chr==24;
-    return 'MT' if $chr==25;
-    return $chr;
 }
 #--------------------------------------------------------------------------------#
 1;
