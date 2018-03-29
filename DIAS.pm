@@ -38,7 +38,7 @@ package DIAS;
 
 use strict;
 use warnings;
-use Sanger::Cosmic::Dias::VEPAnnotator;
+use Sanger::Cosmic::Dias::VEPAnnotationFormatter;
 use Sanger::Cosmic::Dias::GenomicVariantDIAS;
 use Data::Dumper;
 
@@ -141,22 +141,21 @@ sub get_header_info {
 sub run {
 	my ($self, $tva, $line_hash) = @_;
 	#my ($self, $vfoa, $line_hash) = @_;
-	my $annotator = Sanger::Cosmic::Dias::VEPAnnotator->new(registry => 'Bio::EnsEMBL::Registry');
+	my $annotation_formatter = Sanger::Cosmic::Dias::VEPAnnotationFormatter->new(transcript_variation_allele => $tva, assembly_version => $self->{config}->{assembly});
 	
 	my ($protein, $cds, $mrna);
-	if (!defined $tva->hgvs_transcript) {	# Skip annotations where the variant lies outside the transcript and its UTRs
-		return undef;				# (these will not have a valid CDS syntax) (i.e. no 'upstream_gene_variant' or 'downstream_gene_variant')
+	if (!defined $tva->hgvs_transcript) {	# Skip annotations where the variant lies outside the transcript cDNA
+		return undef;				# these will not have a valid CDS syntax (i.e. no 'upstream_gene_variant' or 'downstream_gene_variant')
 	}
 	
+	$cds = $annotation_formatter->get_cds($tva);
+	$mrna = $annotation_formatter->get_mrna($tva);
+	
 	if ($tva->transcript->translation) {	# If protein-coding transcript
-		$protein = $annotator->get_protein($tva);
-		$cds = $annotator->get_cds($tva);
-		$mrna = $annotator->get_mrna($tva);
+		$protein = $annotation_formatter->get_protein($tva);
 	}
 	else {									# All other transcript-types (pseudogenes, lincRNAs etc)
 		$protein = undef;
-		$cds = undef;
-		$mrna = $annotator->get_mrna($tva);
 	}
 	
 	my $input_var = get_variant_cosmic_data($line_hash->{Uploaded_variation});
@@ -200,7 +199,7 @@ sub run {
 		USERNAME 				=> $ENV{USER},
 		GENE_NAME 				=> $cds->{GENE},
 		ACCESSION 				=> $cds->{ACCESSION},
-		CCDS 					=> $cds->{CCDS},	#TODO - this doesn't work
+		CCDS 					=> $cds->{CCDS},
 		DB 						=> $cds->{DB},
 		DBVERSION 				=> $cds->{DBVERSION},
 		#ID_VARIANT 				=> '',#TODO
@@ -226,7 +225,7 @@ sub get_variant_cosmic_data {
 	my $input_csv = shift;
 	my @cols = split(',', $input_csv);
 	my $var = Sanger::Cosmic::Dias::GenomicVariantDIAS->new(chr 				=> $cols[0],
-															genome_ver			=> $cols[1],
+															genome_version		=> $cols[1],
 															start				=> $cols[2],
 															stop				=> $cols[3],
 															wt 					=> $cols[4],
