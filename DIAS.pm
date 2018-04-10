@@ -39,6 +39,7 @@ package DIAS;
 use strict;
 use warnings;
 use Sanger::Cosmic::Dias::VEPAnnotationFormatter;
+use Sanger::Cosmic::Dias::GenomeFormatter;
 use Sanger::Cosmic::Dias::GenomicVariantDIAS;
 use Data::Dumper;
 
@@ -73,7 +74,7 @@ sub version {
 }
 #--------------------------------------------------------------------------------#
 sub feature_types {
-	return ['Transcript'];
+	return ['Transcript', 'Intergenic'];
 }
 #--------------------------------------------------------------------------------#
 sub variant_feature_types {
@@ -85,7 +86,7 @@ sub get_header_info {
 	my $self = shift;
 
 	return {
-		RECORD 					=> '',#TODO
+		#RECORD 					=> 'input variant',
 		CDS_START 				=> 'start position of transcript change in CDS coordinates',
 		CDS_STARTOFFSET 		=> 'intron offset of CDS_START',
 		CDS_STOP 				=> 'stop position of transcript change in CDS coordinates',
@@ -110,7 +111,7 @@ sub get_header_info {
 		#MUT_BURDEN 				=> '',
 		CHR 					=> 'chromosome',
 		STRAND 					=> 'strand of the transcript annotation',
-		VARIANT_ONTOLOGY		=> 'SO accessions for the variant type',
+		VARIANT_ONTOLOGY		=> 'SO accession for the variant type',
 		CONSEQUENCES_ONTOLOGY 	=> 'SO accessions for consequence terms',
 		ID_SAMPLE 				=> 'Cosmic sample',
 		ID_STUDY 				=> 'Cosmic study',
@@ -123,103 +124,127 @@ sub get_header_info {
 		#ID_VARIANT 				=> '',#TODO
 		#ID_VARIANT_TYPE 		=> '',#TODO
 		#ID_QUALITY 				=> '',#TODO
-		#ID_FEATURE_TYPE 		=> 'type of mutation (coding/non-coding)',
+        ID_FEATURE_TYPE_COSMIC  => 'type of variant (coding=1/non-coding=4)',
 		ID_MUT_SOMATIC_STATUS 	=> 'Cosmic somatic status',
 		ID_MUT_VERIF_STATUS 	=> 'Cosmic verification status',
 		ID_MUTATION_CURRENT 	=> 'current Cosmic mutation ID',
-		#INTRA_INTERGENIC 		=> 'location of mutation on the genome relative to genes (intergenic/intragenic)',	#TODO
-		#WITHIN_GENE_FOOTPRINT 	=> 'located within a gene boundary (y/n)',	#TODO
-		ID_MUT_TYPE 			=> 'type of CDS mutation (sub/ins/del/complex)',
-		ID_MUT_TYPE_AA 			=> 'type of AA mutation (sub/ins/del/complex/frameshift)',
+		#INTRA_INTERGENIC 		=> 'location of mutation on the genome relative to genes (intergenic/intragenic)',
+		#WITHIN_GENE_FOOTPRINT 	=> 'located within a gene boundary (y/n)',
+		ID_MUT_TYPE 			=> 'SO accession for the variant type',
 		PARENT_MUT_LENGTH 		=> 'length of genomic mutant sequence',
 		CDS_MUT_LENGTH 			=> 'length of CDS mutant sequence',
 		AA_MUT_LENGTH 			=> 'length of AA mutant sequence',
-		#NCV_REMARK 				=> 'remark specifying the cDNA location of mutation',					#TODO
+		#NCV_REMARK 				=> 'remark specifying the cDNA location of mutation',
 	};
 }
 #--------------------------------------------------------------------------------#
 sub run {
-	my ($self, $tva, $line_hash) = @_;
-	#my ($self, $vfoa, $line_hash) = @_;
-	my $annotation_formatter = Sanger::Cosmic::Dias::VEPAnnotationFormatter->new(transcript_variation_allele => $tva, assembly_version => $self->{config}->{assembly});
-	
-	my ($protein, $cds, $mrna);
-	if (!defined $tva->hgvs_transcript) {	# Skip annotations where the variant lies outside the transcript cDNA
-		return undef;				# these will not have a valid CDS syntax (i.e. no 'upstream_gene_variant' or 'downstream_gene_variant')
-	}
-	
-	$cds = $annotation_formatter->get_cds($tva);
-	$mrna = $annotation_formatter->get_mrna($tva);
-	
-	if ($tva->transcript->translation) {	# If protein-coding transcript
-		$protein = $annotation_formatter->get_protein($tva);
-	}
-	else {									# All other transcript-types (pseudogenes, lincRNAs etc)
-		$protein = undef;
-	}
-	
+	my ($self, $vfoa, $line_hash) = @_;
+	#my ($self, $tva, $line_hash) = @_;
 	my $input_var = get_variant_cosmic_data($line_hash->{Uploaded_variation});
-	my $genomic_wt = get_genomic_wt_allele($tva);
-	my $genomic_mut = get_genomic_mut_allele($tva);
-	my $aa_mut = get_aa_mut_allele($protein, $line_hash);
 	
-	return {
-		RECORD 					=> $line_hash->{Uploaded_variation},
-		CDS_START 				=> $cds->{START},
-		CDS_STARTOFFSET 		=> $cds->{STARTOFFSET} || '',
-		CDS_STOP 				=> $cds->{STOP},
-		CDS_STOPOFFSET 			=> $cds->{STOPOFFSET} || '',
-		UTR_START 		 		=> $cds->{UTR_START},
-		UTR_STOP 	 			=> $cds->{UTR_STOP},
-		CDS_WT 					=> $cds->{WT} || '',
-		CDS_MT 					=> $cds->{MT} || '',
-		CDS_SYNTAX 				=> $cds->{SYNTAX},
-		AA_START 				=> $protein->{START} || '',
-		AA_STOP 				=> $protein->{STOP} || '',
-		AA_WT					=> $protein->{WT} || '',
-		AA_MT 					=> $aa_mut,
-		AA_SYNTAX 				=> $protein->{SYNTAX} || '',
-		GENOME_START			=> $tva->variation_feature->start,
-		GENOME_STOP	 			=> $tva->variation_feature->end,
-		#GENOME_WT 				=> $genomic_wt || '',
-		GENOME_WT 				=> $cds->{WT} || '',
-		#GENOME_MT				=> $genomic_mut || '',
-		GENOME_MT				=> $cds->{MT} || '',
-		GENOME_SYNTAX 			=> $line_hash->{HGVSg},
-		GENOME_VER 				=> $self->{config}->{assembly},
-		PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
-		#MUT_BURDEN 				=> '',#TODO
-		CHR 					=> $tva->variation_feature->seq_region_name,
-		STRAND 					=> $cds->{STRAND},
-		VARIANT_ONTOLOGY		=> $cds->{VARIANT_ONTOLOGY},
-		CONSEQUENCES_ONTOLOGY 	=> $cds->{CONSEQUENCES_ONTOLOGY},
-		ID_SAMPLE 				=> $input_var->{id_sample},
-		ID_STUDY 				=> $input_var->{id_study} || '',
-		ID_PAPER 				=> $input_var->{id_paper} || '',
-		USERNAME 				=> $ENV{USER},
-		GENE_NAME 				=> $cds->{GENE},
-		ACCESSION 				=> $cds->{ACCESSION},
-		CCDS 					=> $cds->{CCDS},
-		DB 						=> $cds->{DB},
-		DBVERSION 				=> $cds->{DBVERSION},
-		#ID_VARIANT 				=> '',#TODO
-		#ID_VARIANT_TYPE 		=> '',#TODO
-		#ID_QUALITY 				=> '',#TODO
-		#ID_FEATURE_TYPE 		=> '',#TODO	- Get rid of this?
-		ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
-		ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
-		ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
-		#INTRA_INTERGENIC 		=> 'location of mutation on the genome relative to genes (intergenic/intragenic)',	#TODO
-		#WITHIN_GENE_FOOTPRINT 	=> 'located within a gene boundary (y/n)',	#TODO
-		ID_MUT_TYPE 			=> defined $cds->{SYNTAX} && $cds->{SYNTAX} =~ /^c\./ ? 1 : 4,
-		ID_MUT_TYPE_AA 			=> 'type of AA mutation (sub/ins/del/complex/frameshift)',	#TODO
-		PARENT_MUT_LENGTH 		=> $genomic_mut ne '-' ? length($genomic_mut) : '',
-		CDS_MUT_LENGTH 			=> $cds->{MT} ne '-' ? length($cds->{MT}) : '',
-		AA_MUT_LENGTH 			=> defined $aa_mut ? length($aa_mut) : '',
-	};
+	if ($vfoa->isa('Bio::EnsEMBL::Variation::IntergenicVariationAllele')) {
+		my $genomic = get_genomic_data($vfoa);
+		return {
+			GENOME_START			=> $genomic->{START},
+			GENOME_STOP	 			=> $genomic->{STOP},
+			GENOME_WT 				=> $genomic->{WT},
+			GENOME_MT				=> $genomic->{MT},
+			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
+			GENOME_VER 				=> $self->{config}->{assembly},
+			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
+			CHR 					=> $genomic->{CHR},
+			STRAND 					=> $genomic->{STRAND},
+			ID_SAMPLE 				=> $input_var->{id_sample},
+			ID_STUDY 				=> $input_var->{id_study} || '',
+			ID_PAPER 				=> $input_var->{id_paper} || '',
+			USERNAME 				=> $ENV{USER},
+			DB 						=> $genomic->{DB},
+			DBVERSION 				=> $genomic->{DBVERSION},
+			ID_FEATURE_TYPE_COSMIC  => 4,
+			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
+			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
+			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
+			ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
+			PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
+			VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},		#TODO
+			CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},	#TODO
+		};
+		
+	} elsif ($vfoa->isa('Bio::EnsEMBL::Variation::TranscriptVariationAllele')) {
+		my $tva = $vfoa;
+		my $annotation_formatter = Sanger::Cosmic::Dias::VEPAnnotationFormatter->new(transcript_variation_allele => $tva,
+																					 assembly_version => $self->{config}->{assembly});
+		
+		#TODO
+		if (!defined $tva->hgvs_transcript) {	# Skip annotations where the variant lies outside the transcript cDNA
+			return undef;				# these will not have a valid CDS syntax (i.e. no 'upstream_gene_variant' or 'downstream_gene_variant')
+		}
+		
+		my $cds = $annotation_formatter->get_cds($tva);
+		my $mrna = $annotation_formatter->get_mrna($tva);
+		my $protein;
+		
+		if ($tva->transcript->translation) {	# If protein-coding transcript
+			$protein = $annotation_formatter->get_protein($tva);
+		}
+		else {									# All other transcript-types (pseudogenes, lincRNAs etc)
+			$protein = undef;
+		}
+		
+		my $aa_mut = get_aa_mut_allele($protein, $line_hash);
+		
+		return {
+			CDS_START 				=> $cds->{START},
+			CDS_STARTOFFSET 		=> $cds->{STARTOFFSET} || '',
+			CDS_STOP 				=> $cds->{STOP},
+			CDS_STOPOFFSET 			=> $cds->{STOPOFFSET} || '',
+			UTR_START 		 		=> $cds->{UTR_START} || '',
+			UTR_STOP 	 			=> $cds->{UTR_STOP} || '',
+			CDS_WT 					=> $cds->{WT} || '',
+			CDS_MT 					=> $cds->{MT} || '',
+			CDS_SYNTAX 				=> $cds->{SYNTAX},
+			AA_START 				=> $protein->{START} || '',
+			AA_STOP 				=> $protein->{STOP} || '',
+			AA_WT					=> $protein->{WT} || '',
+			AA_MT 					=> $aa_mut,
+			AA_SYNTAX 				=> $protein->{SYNTAX} || '',
+			GENOME_START			=> $tva->variation_feature->start,
+			GENOME_STOP	 			=> $tva->variation_feature->end,
+			GENOME_WT 				=> $cds->{WT} || '',
+			GENOME_MT				=> $cds->{MT} || '',
+			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
+			GENOME_VER 				=> $self->{config}->{assembly},
+			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
+			#MUT_BURDEN 				=> '',#TODO
+			CHR 					=> $tva->variation_feature->seq_region_name,
+			STRAND 					=> $cds->{STRAND},
+			VARIANT_ONTOLOGY		=> $cds->{VARIANT_ONTOLOGY},
+			CONSEQUENCES_ONTOLOGY 	=> $cds->{CONSEQUENCES_ONTOLOGY},
+			ID_SAMPLE 				=> $input_var->{id_sample},
+			ID_STUDY 				=> $input_var->{id_study} || '',
+			ID_PAPER 				=> $input_var->{id_paper} || '',
+			USERNAME 				=> $ENV{USER},
+			GENE_NAME 				=> $cds->{GENE},
+			ACCESSION 				=> $cds->{ACCESSION},
+			CCDS 					=> $cds->{CCDS},
+			DB 						=> $cds->{DB},
+			DBVERSION 				=> $cds->{DBVERSION},
+			#ID_VARIANT 				=> '',#TODO
+			#ID_VARIANT_TYPE 		=> '',#TODO
+			#ID_QUALITY 				=> '',#TODO
+			ID_FEATURE_TYPE_COSMIC  => defined $cds->{SYNTAX} && $cds->{SYNTAX} =~ /^c\./ ? 1 : 4,
+			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
+			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
+			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
+			ID_MUT_TYPE 			=> $cds->{VARIANT_ONTOLOGY},
+			PARENT_MUT_LENGTH 		=> $cds->{MT} ne '-' ? length($cds->{MT}) : '',	#TODO - Do we need all 3 mut length fields?
+			CDS_MUT_LENGTH 			=> $cds->{MT} ne '-' ? length($cds->{MT}) : '',
+			AA_MUT_LENGTH 			=> defined $aa_mut ? length($aa_mut) : '',
+		};
+	}
 }
 #--------------------------------------------------------------------------------#
-#Not used currently
 #TODO - Use Text::CSV_XS to parse this
 sub get_variant_cosmic_data {
 	my $input_csv = shift;
@@ -243,16 +268,20 @@ sub get_variant_cosmic_data {
 	return $var;
 }
 #--------------------------------------------------------------------------------#
-sub get_genomic_wt_allele {
-	my $tva = shift;
-	#my $wt = $tva->variation_feature->ref_allele_string;
-	return (split ("/", $tva->allele_string))[0];
-}
-#--------------------------------------------------------------------------------#
-sub get_genomic_mut_allele {
-	my $tva = shift;
-	#my $allele = $tva->variation_feature->allele_string;
-	return (split ("/", $tva->allele_string))[1];
+sub get_genomic_data {
+	my $vfoa = shift;
+	my $genome_formatter = Sanger::Cosmic::Dias::GenomeFormatter->new(variation_allele => $vfoa);
+	return {WT => $genome_formatter->wt_allele,
+			MT => $genome_formatter->mut_allele,
+			START => $genome_formatter->start,
+			STOP => $genome_formatter->stop,
+			CHR => $genome_formatter->chromosome,
+			STRAND => $genome_formatter->strand,
+			DB => $genome_formatter->db,
+			DBVERSION => $genome_formatter->db_version,
+			VARIANT_ONTOLOGY => $genome_formatter->variant_ontology,
+			CONSEQUENCES_ONTOLOGY => $genome_formatter->consequences_ontology,
+			};
 }
 #--------------------------------------------------------------------------------#
 #VEP does not provide mutant aa for frameshift variants, so use Downstream column returned from the 'Downstream' plugin
@@ -262,7 +291,7 @@ sub get_aa_mut_allele {
 	if (/stop_gained/ ~~ $protein->{CONSEQUENCES_ONTOLOGY} || /frameshift_variant/ ~~ $protein->{CONSEQUENCES_ONTOLOGY}) {
 		$allele = $line_hash->{DownstreamProtein}."*";	#adding the stop codon is cosmic notation
 	}
-	return $allele || '';
+	return $allele || undef;
 }
 #--------------------------------------------------------------------------------#
 1;
