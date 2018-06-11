@@ -98,7 +98,7 @@ sub run {
         my $three_prime_utr_seq  = $tr->three_prime_utr->seq() if ($tr->three_prime_utr);
         $to_translate            = $to_translate.$three_prime_utr_seq if ($three_prime_utr_seq);
         $to_translate            =~ s/\-//g;
-        
+		
         # create a bioperl object
         my $codon_seq = Bio::Seq->new(
           -seq      => $to_translate,
@@ -119,6 +119,23 @@ sub run {
         # translate
         my $new_pep = $codon_seq->translate(undef, undef, undef, $codon_table)->seq();
         $new_pep =~ s/\*.*//;
+		
+		# bh4 - Trim the peptide to start with the first _changed_ amino acid (as per HGVS recommendations)
+		my $ref_cds_seq = substr $cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
+		my $ref_cds = Bio::Seq->new(-seq => $ref_cds_seq, -moltype => 'dna', -alphabet => 'dna');
+		my $ref_peptide = $ref_cds->translate(undef, undef, undef, $codon_table)->seq;
+		my $clip_position = 0;
+		for (my $i=0; $i<=length($ref_peptide); $i++) {
+			my $ref_aa = substr($ref_peptide, $i, 1);
+			my $mut_aa = substr($new_pep, $i, 1);
+			
+			if ($ref_aa eq $mut_aa) {
+				$clip_position++;
+			} else {
+				last;
+			}
+		}
+		$new_pep = substr($new_pep, $clip_position);
         
         # compare lengths
         my $translation = defined($tr->{_variation_effect_feature_cache}) && defined($tr->{_variation_effect_feature_cache}->{peptide}) ? $tr->{_variation_effect_feature_cache}->{peptide} : $tr->translation->seq;
