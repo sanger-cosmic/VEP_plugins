@@ -29,7 +29,7 @@ limitations under the License.
   This is a plugin for the Ensembl Variant Effect Predictor (VEP) that
   adds extra fields to the output like AA_START, AA_STOP.
   
-  This is written with the intention to be incorporated to the
+  This is written with the intention of being incorporated into the
   COSMIC annotation pipeline.
 
 =cut
@@ -41,11 +41,21 @@ use warnings;
 use Sanger::Cosmic::Dias::VEPAnnotationFormatter;
 use Sanger::Cosmic::Dias::GenomeFormatter;
 use Sanger::Cosmic::Dias::GenomicVariantDIAS;
+use Bio::EnsEMBL::VEP::Utils qw(get_version_data);
+use Sanger::Cosmic::Dias::Constants qw(%HEADER_DESCRIPTIONS %DEFAULT_COLUMN_VALUES);
+use Try::Tiny;
 use Data::Dumper;
+use Hash::Util qw(lock_keys);
+use Hash::Merge qw(merge);
 
 use base qw(Bio::EnsEMBL::Variation::Utils::BaseVepPlugin);
 
+#use constant ID_FEATURE_TYPE_CODING => 1;		# variants within the boundaries (i.e. UTR + CDS + introns) of a CODING transcript
+#use constant ID_FEATURE_TYPE_NONCODING => 4;	# variants within the boundaries (i.e. UTR + CDS + introns) of a NONCODING transcript
+#use constant ID_FEATURE_TYPE_INTERGENIC => 5;	# variants within promoter regions of genes or intergenic regions
+
 #--------------------------------------------------------------------------------#
+#TODO - No need to check for hgvs option?
 sub new {
 	my $class = shift;
     my $self = $class->SUPER::new(@_);
@@ -70,7 +80,7 @@ sub new {
 }
 #--------------------------------------------------------------------------------#
 sub version {
-	return '90.0';
+	return '92.0';
 }
 #--------------------------------------------------------------------------------#
 sub feature_types {
@@ -84,169 +94,181 @@ sub variant_feature_types {
 #--------------------------------------------------------------------------------#
 sub get_header_info {
 	my $self = shift;
-
-	return {
-		#RECORD 					=> 'input variant',
-		CDS_START 				=> 'start position of transcript change in CDS coordinates',
-		CDS_STARTOFFSET 		=> 'intron offset of CDS_START',
-		CDS_STOP 				=> 'stop position of transcript change in CDS coordinates',
-		CDS_STOPOFFSET 			=> 'intron offset of CDS_STOP',
-		UTR_START 				=> 'UTR offset of CDS_START',
-		UTR_STOP 				=> 'UTR offset of CDS_STOP',
-		CDS_WT 					=> 'reference CDS sequence',
-		CDS_MT 					=> 'mutant CDS sequence',
-		CDS_SYNTAX 				=> 'CDS mutation syntax in HGVS format',
-		AA_START 				=> 'start position of protein change in AA coordinates',
-		AA_STOP 				=> 'stop position of protein change in AA coordinates',
-		AA_WT					=> 'reference AA sequence',
-		AA_MT 					=> 'mutant AA sequence',
-		AA_SYNTAX 				=> 'AA mutation in HGVS syntax (1 letter code)',
-		GENOME_START			=> 'start position of genomic change in genomic coordinates',
-		GENOME_STOP	 			=> 'stop position of genomic change in genomic coordinates',
-		GENOME_WT 				=> 'reference genomic sequence',
-		GENOME_MT				=> 'mutant genomic sequence',
-		GENOME_SYNTAX 			=> 'genomic mutation syntax in HGVS format',
-		GENOME_VER 				=> 'assembly build',
-		PERCENT_MUT_ALLELE 		=> 'Percentage of the mutant allele',
-		#MUT_BURDEN 				=> '',
-		CHR 					=> 'chromosome',
-		STRAND 					=> 'strand of the transcript annotation',
-		VARIANT_ONTOLOGY		=> 'SO accession for the variant type',
-		CONSEQUENCES_ONTOLOGY 	=> 'SO accessions for consequence terms',
-		ID_SAMPLE 				=> 'Cosmic sample',
-		ID_STUDY 				=> 'Cosmic study',
-		ID_PAPER 				=> 'Cosmic paper',
-		USERNAME 				=> 'user inserting the mutation',
-		GENE_NAME 				=> 'gene name',
-		ACCESSION 				=> 'Ensembl stable_id of the transcript',
-		DB 						=> 'source database of annotations',
-		DBVERSION 				=> 'version of source database',
-		#ID_VARIANT 				=> '',#TODO
-		#ID_VARIANT_TYPE 		=> '',#TODO
-		#ID_QUALITY 				=> '',#TODO
-        ID_FEATURE_TYPE_COSMIC  => 'type of variant (coding=1/non-coding=4)',
-		ID_MUT_SOMATIC_STATUS 	=> 'Cosmic somatic status',
-		ID_MUT_VERIF_STATUS 	=> 'Cosmic verification status',
-		ID_MUTATION_CURRENT 	=> 'current Cosmic mutation ID',
-		#INTRA_INTERGENIC 		=> 'location of mutation on the genome relative to genes (intergenic/intragenic)',
-		#WITHIN_GENE_FOOTPRINT 	=> 'located within a gene boundary (y/n)',
-		ID_MUT_TYPE 			=> 'SO accession for the variant type',
-		PARENT_MUT_LENGTH 		=> 'length of genomic mutant sequence',
-		CDS_MUT_LENGTH 			=> 'length of CDS mutant sequence',
-		AA_MUT_LENGTH 			=> 'length of AA mutant sequence',
-		#NCV_REMARK 				=> 'remark specifying the cDNA location of mutation',
-	};
+	return \%Sanger::Cosmic::Dias::Constants::HEADER_DESCRIPTIONS;
 }
 #--------------------------------------------------------------------------------#
 sub run {
 	my ($self, $vfoa, $line_hash) = @_;
 	#my ($self, $tva, $line_hash) = @_;
-	my $input_var = get_variant_cosmic_data($line_hash->{Uploaded_variation});
+	#try {
+	#	my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
+	#} catch {
+	#	warn "ERROR : $_\n";
+	#	return {};
+	#};
+	
+	my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
+	
+	my $genomic = $self->get_genomic_data($vfoa);
+	
+	my %default_data = %Sanger::Cosmic::Dias::Constants::DEFAULT_COLUMN_VALUES;
+	lock_keys(%default_data);	
+	my $merge_hash = Hash::Merge->new('RIGHT_PRECEDENT');
 	
 	if ($vfoa->isa('Bio::EnsEMBL::Variation::IntergenicVariationAllele')) {
-		my $genomic = get_genomic_data($vfoa);
-		return {
+		my %intergenic_data = (
 			GENOME_START			=> $genomic->{START},
 			GENOME_STOP	 			=> $genomic->{STOP},
 			GENOME_WT 				=> $genomic->{WT},
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			GENOME_VER 				=> $self->{config}->{assembly},
-			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
+			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele},
 			CHR 					=> $genomic->{CHR},
-			STRAND 					=> $genomic->{STRAND},
+			STRAND 					=> $genomic->{STRAND},	#VEP produces a 'STRAND' column, so no need for this
 			ID_SAMPLE 				=> $input_var->{id_sample},
-			ID_STUDY 				=> $input_var->{id_study} || '',
-			ID_PAPER 				=> $input_var->{id_paper} || '',
+			ID_STUDY 				=> $input_var->{id_study},
+			ID_PAPER 				=> $input_var->{id_paper},
 			USERNAME 				=> $ENV{USER},
 			DB 						=> $genomic->{DB},
 			DBVERSION 				=> $genomic->{DBVERSION},
-			ID_FEATURE_TYPE_COSMIC  => 4,
+			ID_FEATURE_TYPE_COSMIC  => $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
 			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
 			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
 			ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
-			PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
-			VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},		#TODO
-			CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},	#TODO
-		};
+			#PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
+			PARENT_MUT_LENGTH 		=> defined $genomic->{MT} ? length($genomic->{MT}) : '',
+			VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},
+			CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},
+			ANNOTATOR_VERSION 		=> $self->get_annotator_version,
+		);
+		
+		my $data = $merge_hash->merge(\%default_data, \%intergenic_data);
+		return $data;
+		#return {
+		#	CDS_START 				=> '',
+		#	CDS_STARTOFFSET 		=> '',
+		#	CDS_STOP 				=> '',
+		#	CDS_STOPOFFSET 			=> '',
+		#	UTR_START 		 		=> '',
+		#	UTR_STOP 	 			=> '',
+		#	AA_START 				=> '',
+		#	AA_STOP 				=> '',
+		#	GENOME_START			=> $genomic->{START},
+		#	GENOME_STOP	 			=> $genomic->{STOP},
+		#	GENOME_WT 				=> $genomic->{WT} || '',
+		#	GENOME_MT				=> $genomic->{MT} || '',
+		#	GENOME_SYNTAX 			=> $line_hash->{HGVSg},
+		#	GENOME_VER 				=> $self->{config}->{assembly},
+		#	PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
+		#	CHR 					=> $genomic->{CHR},
+		#	#STRAND 					=> $genomic->{STRAND},	#VEP produces a 'STRAND' column, so no need for this
+		#	ID_SAMPLE 				=> $input_var->{id_sample},
+		#	ID_STUDY 				=> $input_var->{id_study} || '',
+		#	ID_PAPER 				=> $input_var->{id_paper} || '',
+		#	USERNAME 				=> $ENV{USER},
+		#	DB 						=> $genomic->{DB},
+		#	DBVERSION 				=> $genomic->{DBVERSION},
+		#	ID_FEATURE_TYPE_COSMIC  => $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC,
+		#	ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
+		#	ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
+		#	ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
+		#	ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
+		#	PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
+		#	VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},
+		#	CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},
+		#	ANNOTATOR_VERSION 		=> $self->get_annotator_version,
+		#};
 		
 	} elsif ($vfoa->isa('Bio::EnsEMBL::Variation::TranscriptVariationAllele')) {
 		my $tva = $vfoa;
 		my $annotation_formatter = Sanger::Cosmic::Dias::VEPAnnotationFormatter->new(transcript_variation_allele => $tva,
 																					 assembly_version => $self->{config}->{assembly});
 		
-		#TODO
-		if (!defined $tva->hgvs_transcript) {	# Skip annotations where the variant lies outside the transcript cDNA
-			return undef;				# these will not have a valid CDS syntax (i.e. no 'upstream_gene_variant' or 'downstream_gene_variant')
-		}
-		
 		my $cds = $annotation_formatter->get_cds($tva);
 		my $mrna = $annotation_formatter->get_mrna($tva);
-		my $protein;
+		my $protein = undef;
 		
-		if ($tva->transcript->translation) {	# If protein-coding transcript
+		if ($tva->transcript->translation) {	# If protein-coding transcript then populate. Leave empty for all other transcript-types (pseudogenes, lincRNAs etc)
 			$protein = $annotation_formatter->get_protein($tva);
-		}
-		else {									# All other transcript-types (pseudogenes, lincRNAs etc)
-			$protein = undef;
 		}
 		
 		my $aa_mut = get_aa_mut_allele($protein, $line_hash);
 		
-		return {
+		#TODO - $genomic->{WT} eq $cds->{WT}?
+	
+		my %transcript_data = (
 			CDS_START 				=> $cds->{START},
-			CDS_STARTOFFSET 		=> $cds->{STARTOFFSET} || '',
+			CDS_STARTOFFSET 		=> $cds->{STARTOFFSET},
 			CDS_STOP 				=> $cds->{STOP},
-			CDS_STOPOFFSET 			=> $cds->{STOPOFFSET} || '',
-			UTR_START 		 		=> $cds->{UTR_START} || '',
-			UTR_STOP 	 			=> $cds->{UTR_STOP} || '',
-			CDS_WT 					=> $cds->{WT} || '',
-			CDS_MT 					=> $cds->{MT} || '',
+			CDS_STOPOFFSET 			=> $cds->{STOPOFFSET},
+			UTR_START 		 		=> $cds->{UTR_START},
+			UTR_STOP 	 			=> $cds->{UTR_STOP},
+			CDS_WT 					=> $cds->{WT},
+			CDS_MT 					=> $cds->{MT},
 			CDS_SYNTAX 				=> $cds->{SYNTAX},
-			AA_START 				=> $protein->{START} || '',
-			AA_STOP 				=> $protein->{STOP} || '',
-			AA_WT					=> $protein->{WT} || '',
+			AA_START 				=> $protein->{START},
+			AA_STOP 				=> $protein->{STOP},
+			AA_WT					=> $protein->{WT},
 			AA_MT 					=> $aa_mut,
-			AA_SYNTAX 				=> $protein->{SYNTAX} || '',
-			GENOME_START			=> $tva->variation_feature->start,
-			GENOME_STOP	 			=> $tva->variation_feature->end,
-			GENOME_WT 				=> $cds->{WT} || '',
-			GENOME_MT				=> $cds->{MT} || '',
+			AA_SYNTAX 				=> $protein->{SYNTAX},
+			GENOME_START			=> $genomic->{START},
+			GENOME_STOP	 			=> $genomic->{STOP},
+			GENOME_WT 				=> $cds->{WT},
+			GENOME_MT				=> $cds->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			GENOME_VER 				=> $self->{config}->{assembly},
-			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
-			#MUT_BURDEN 				=> '',#TODO
+			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele},
 			CHR 					=> $tva->variation_feature->seq_region_name,
 			STRAND 					=> $cds->{STRAND},
 			VARIANT_ONTOLOGY		=> $cds->{VARIANT_ONTOLOGY},
 			CONSEQUENCES_ONTOLOGY 	=> $cds->{CONSEQUENCES_ONTOLOGY},
 			ID_SAMPLE 				=> $input_var->{id_sample},
-			ID_STUDY 				=> $input_var->{id_study} || '',
-			ID_PAPER 				=> $input_var->{id_paper} || '',
-			USERNAME 				=> $ENV{USER},
+			ID_STUDY 				=> $input_var->{id_study},
+			ID_PAPER 				=> $input_var->{id_paper},
 			GENE_NAME 				=> $cds->{GENE},
 			ACCESSION 				=> $cds->{ACCESSION},
 			CCDS 					=> $cds->{CCDS},
 			DB 						=> $cds->{DB},
 			DBVERSION 				=> $cds->{DBVERSION},
-			#ID_VARIANT 				=> '',#TODO
-			#ID_VARIANT_TYPE 		=> '',#TODO
-			#ID_QUALITY 				=> '',#TODO
-			ID_FEATURE_TYPE_COSMIC  => defined $cds->{SYNTAX} && $cds->{SYNTAX} =~ /^c\./ ? 1 : 4,
+			ID_FEATURE_TYPE_COSMIC  => is_coding($cds->{SYNTAX}) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING : is_within_gene_boundary($cds) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC : $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
 			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
 			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
 			ID_MUT_TYPE 			=> $cds->{VARIANT_ONTOLOGY},
-			PARENT_MUT_LENGTH 		=> $cds->{MT} ne '-' ? length($cds->{MT}) : '',	#TODO - Do we need all 3 mut length fields?
-			CDS_MUT_LENGTH 			=> $cds->{MT} ne '-' ? length($cds->{MT}) : '',
+			PARENT_MUT_LENGTH 		=> defined $cds->{MT} ? length($cds->{MT}) : '',
+			CDS_MUT_LENGTH 			=> defined $cds->{MT} ? length($cds->{MT}) : '',
 			AA_MUT_LENGTH 			=> defined $aa_mut ? length($aa_mut) : '',
-		};
+			ANNOTATOR_VERSION 		=> $self->get_annotator_version,
+		);
+		my $data = $merge_hash->merge(\%default_data, \%transcript_data);
+		return $data;
+	}
+}
+#--------------------------------------------------------------------------------#
+sub is_coding {
+	my $syntax = shift;
+	if (defined $syntax) {
+		if ($syntax =~ /^c\./) {
+			return 1;
+		}
+	}
+	return 0;
+}
+#--------------------------------------------------------------------------------#
+#These variants lie outside the cDNA (i.e. gene footprint) but are still within the gene boundaries. e.g. promoter regions
+sub is_within_gene_boundary {
+	my $cds = shift;
+	if (/upstream_gene_variant/ ~~ $cds->{CONSEQUENCES_ONTOLOGY} || /downstream_gene_variant/ ~~ $cds->{CONSEQUENCES_ONTOLOGY}) {
+		return 1;
+	} else {
+		return 0;
 	}
 }
 #--------------------------------------------------------------------------------#
 #TODO - Use Text::CSV_XS to parse this
-sub get_variant_cosmic_data {
+sub get_input_variant_data {
 	my $input_csv = shift;
 	my @cols = split(',', $input_csv);
 	my $var = Sanger::Cosmic::Dias::GenomicVariantDIAS->new(chr 				=> $cols[0],
@@ -259,28 +281,28 @@ sub get_variant_cosmic_data {
 															confirmed 			=> $cols[7],
 															verified			=> $cols[8] || undef,
 															id_sample 			=> $cols[9],
-															id_mutation_current	=> $cols[10],
-															#id_study 			=> $cols[11] ne 'cosu' ? $cols[11] =~ s/cosu//gi : undef,	# empty values = 'cosu'
-															#id_paper 			=> $cols[12] ne 'cosp' ? $cols[12] =~ s/cosp//gi : undef,	# empty values = 'cosp'
-															id_study 			=> $cols[11] || undef,	# empty values = 'cosu'
-															id_paper 			=> $cols[12] || undef,	# empty values = 'cosp'
+															id_mutation_current    => $cols[10],
+															id_study 			=> $cols[11] || undef,
+															id_paper 			=> $cols[12] || undef,
 															);
 	return $var;
 }
 #--------------------------------------------------------------------------------#
 sub get_genomic_data {
+	my $self = shift;
 	my $vfoa = shift;
+	#my $genome_formatter = Sanger::Cosmic::Dias::GenomeFormatter->new(variation_allele => $vfoa, _slice_adaptor => $self->{config}->{sa});
 	my $genome_formatter = Sanger::Cosmic::Dias::GenomeFormatter->new(variation_allele => $vfoa);
-	return {WT => $genome_formatter->wt_allele,
-			MT => $genome_formatter->mut_allele,
-			START => $genome_formatter->start,
-			STOP => $genome_formatter->stop,
-			CHR => $genome_formatter->chromosome,
-			STRAND => $genome_formatter->strand,
-			DB => $genome_formatter->db,
-			DBVERSION => $genome_formatter->db_version,
-			VARIANT_ONTOLOGY => $genome_formatter->variant_ontology,
-			CONSEQUENCES_ONTOLOGY => $genome_formatter->consequences_ontology,
+	return {WT 						=> $genome_formatter->wt_allele,
+			MT 						=> $genome_formatter->mut_allele,
+			START 					=> $genome_formatter->start,
+			STOP 					=> $genome_formatter->stop,
+			CHR 					=> $genome_formatter->chromosome,
+			STRAND 					=> $genome_formatter->strand,
+			DB 						=> $genome_formatter->db,
+			DBVERSION 				=> $genome_formatter->db_version,
+			VARIANT_ONTOLOGY 		=> $genome_formatter->variant_ontology,
+			CONSEQUENCES_ONTOLOGY 	=> $genome_formatter->consequences_ontology,
 			};
 }
 #--------------------------------------------------------------------------------#
@@ -288,10 +310,16 @@ sub get_genomic_data {
 sub get_aa_mut_allele {
 	my ($protein, $line_hash) = @_;
 	my $allele = $protein->{MT};
-	if (/stop_gained/ ~~ $protein->{CONSEQUENCES_ONTOLOGY} || /frameshift_variant/ ~~ $protein->{CONSEQUENCES_ONTOLOGY}) {
-		$allele = $line_hash->{DownstreamProtein}."*";	#adding the stop codon is cosmic notation
+	if (/frameshift_variant/ ~~ $protein->{CONSEQUENCES_ONTOLOGY}) {
+		$allele = $line_hash->{DownstreamProtein}."*";
 	}
 	return $allele || undef;
+}
+#--------------------------------------------------------------------------------#
+sub get_annotator_version {
+	my $self = shift;
+	my $version = get_version_data()->{'ensembl-vep'};
+	return $version->{release}.".".$version->{sub};
 }
 #--------------------------------------------------------------------------------#
 1;
