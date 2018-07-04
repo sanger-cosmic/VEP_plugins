@@ -22,7 +22,7 @@ limitations under the License.
 =head1 SYNOPSIS
 
   mv DIAS.pm ~/.vep/Plugins
-  perl variant_effect_predictor.pl -i variations.vcf --cache --plugin DIAS
+  vep -i variations.tsv --cache --plugin DIAS
 
 =head1 DESCRIPTION
 
@@ -135,9 +135,8 @@ sub run {
 			ID_FEATURE_TYPE_COSMIC  => $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
 			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
-			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
+			ID_MUTATION_CURRENT 	=> join(';', @{$input_var->{id_mutation_current}}),
 			ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
-			#PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
 			PARENT_MUT_LENGTH 		=> defined $genomic->{MT} ? length($genomic->{MT}) : '',
 			VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},
 			CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},
@@ -146,40 +145,6 @@ sub run {
 		
 		my $data = $merge_hash->merge(\%default_data, \%intergenic_data);
 		return $data;
-		#return {
-		#	CDS_START 				=> '',
-		#	CDS_STARTOFFSET 		=> '',
-		#	CDS_STOP 				=> '',
-		#	CDS_STOPOFFSET 			=> '',
-		#	UTR_START 		 		=> '',
-		#	UTR_STOP 	 			=> '',
-		#	AA_START 				=> '',
-		#	AA_STOP 				=> '',
-		#	GENOME_START			=> $genomic->{START},
-		#	GENOME_STOP	 			=> $genomic->{STOP},
-		#	GENOME_WT 				=> $genomic->{WT} || '',
-		#	GENOME_MT				=> $genomic->{MT} || '',
-		#	GENOME_SYNTAX 			=> $line_hash->{HGVSg},
-		#	GENOME_VER 				=> $self->{config}->{assembly},
-		#	PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele} || '',
-		#	CHR 					=> $genomic->{CHR},
-		#	#STRAND 					=> $genomic->{STRAND},	#VEP produces a 'STRAND' column, so no need for this
-		#	ID_SAMPLE 				=> $input_var->{id_sample},
-		#	ID_STUDY 				=> $input_var->{id_study} || '',
-		#	ID_PAPER 				=> $input_var->{id_paper} || '',
-		#	USERNAME 				=> $ENV{USER},
-		#	DB 						=> $genomic->{DB},
-		#	DBVERSION 				=> $genomic->{DBVERSION},
-		#	ID_FEATURE_TYPE_COSMIC  => $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC,
-		#	ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
-		#	ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
-		#	ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
-		#	ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
-		#	PARENT_MUT_LENGTH 		=> $genomic->{MT} ne '-' ? length($genomic->{MT}) : '',
-		#	VARIANT_ONTOLOGY		=> $genomic->{VARIANT_ONTOLOGY},
-		#	CONSEQUENCES_ONTOLOGY 	=> $genomic->{CONSEQUENCES_ONTOLOGY},
-		#	ANNOTATOR_VERSION 		=> $self->get_annotator_version,
-		#};
 		
 	} elsif ($vfoa->isa('Bio::EnsEMBL::Variation::TranscriptVariationAllele')) {
 		my $tva = $vfoa;
@@ -235,7 +200,7 @@ sub run {
 			ID_FEATURE_TYPE_COSMIC  => is_coding($cds->{SYNTAX}) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING : is_within_gene_boundary($cds) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC : $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
 			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
-			ID_MUTATION_CURRENT 	=> $input_var->{id_mutation_current},
+			ID_MUTATION_CURRENT 	=> join(';', @{$input_var->{id_mutation_current}}),
 			ID_MUT_TYPE 			=> $cds->{VARIANT_ONTOLOGY},
 			PARENT_MUT_LENGTH 		=> defined $cds->{MT} ? length($cds->{MT}) : '',
 			CDS_MUT_LENGTH 			=> defined $cds->{MT} ? length($cds->{MT}) : '',
@@ -281,7 +246,8 @@ sub get_input_variant_data {
 															confirmed 			=> $cols[7],
 															verified			=> $cols[8] || undef,
 															id_sample 			=> $cols[9],
-															id_mutation_current    => $cols[10],
+															#id_mutation_current    => $cols[10],
+															id_mutation_current    => [split(';', $cols[10])],
 															id_study 			=> $cols[11] || undef,
 															id_paper 			=> $cols[12] || undef,
 															);
