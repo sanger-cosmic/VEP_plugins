@@ -160,13 +160,16 @@ sub run {
 		}
 		
 		my $aa_mut = get_aa_mut_allele($protein, $line_hash);
-		
+		my $id_feature_type_cosmic = get_id_feature_type($cds);
+			
 		#TODO - $genomic->{WT} eq $cds->{WT}?
 	
 		my %transcript_data = (
-			CDS_START 				=> $cds->{START},
+			CDS_START 				=> $id_feature_type_cosmic == $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING ? $cds->{START} : undef,		# populate only for protein-coding transcripts
+			CDNA_START 				=> $id_feature_type_cosmic == $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING ? $cds->{START} : undef,	# populate only for non-coding transcripts
 			CDS_STARTOFFSET 		=> $cds->{STARTOFFSET},
-			CDS_STOP 				=> $cds->{STOP},
+			CDS_STOP 				=> $id_feature_type_cosmic == $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING ? $cds->{STOP} : undef,		# populate only for protein-coding transcripts
+			CDNA_STOP 				=> $id_feature_type_cosmic == $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING ? $cds->{STOP} : undef,	# populate only for non-coding transcripts
 			CDS_STOPOFFSET 			=> $cds->{STOPOFFSET},
 			UTR_START 		 		=> $cds->{UTR_START},
 			UTR_STOP 	 			=> $cds->{UTR_STOP},
@@ -197,7 +200,7 @@ sub run {
 			CCDS 					=> $cds->{CCDS},
 			DB 						=> $cds->{DB},
 			DBVERSION 				=> $cds->{DBVERSION},
-			ID_FEATURE_TYPE_COSMIC  => is_coding($cds->{SYNTAX}) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING : is_within_gene_boundary($cds) ? $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC : $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING,
+			ID_FEATURE_TYPE_COSMIC  => $id_feature_type_cosmic,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->{confirmed},
 			ID_MUT_VERIF_STATUS 	=> $input_var->{verified},
 			ID_MUTATION_CURRENT 	=> join(';', @{$input_var->{id_mutation_current}}),
@@ -209,6 +212,20 @@ sub run {
 		);
 		my $data = $merge_hash->merge(\%default_data, \%transcript_data);
 		return $data;
+	}
+}
+#--------------------------------------------------------------------------------#
+sub get_id_feature_type {
+	my $cds = shift;
+	if (is_coding($cds->{SYNTAX})) {
+		return $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_CODING;
+	}
+	else {
+		if (is_within_gene_boundary($cds)) {
+			return $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC;
+		} else {
+			return $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_NONCODING;
+		}
 	}
 }
 #--------------------------------------------------------------------------------#
