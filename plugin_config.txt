@@ -879,5 +879,16 @@ my $VEP_PLUGIN_CONFIG = {
       "enabled" => 0,
       "plugin_url" => "https://raw.githubusercontent.com/Ensembl/VEP_plugins/release/91/TSSDistance.pm",
     },
+    
+    # DIAS
+    {
+      "key" => "DIAS",
+      "label" => "Data Integration and Annotation System",
+      "helptip" => "Adds metadata to variants to be loaded into the COSMIC database",
+      "available" => 0,
+      "enabled" => 0,
+      "plugin_url" => "https://raw.githubusercontent.com/sanger-cosmic/VEP_plugins/release/91/DIAS.pm",
+      "section" => "Variant data"
+    }
   ]
 };
