@@ -100,18 +100,23 @@ sub get_header_info {
 sub run {
 	my ($self, $vfoa, $line_hash) = @_;
 	#my ($self, $tva, $line_hash) = @_;
-	#try {
-	#	my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
-	#} catch {
-	#	warn "ERROR : $_\n";
-	#	return {};
-	#};
 	
-	my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
+	my $input_var;
+	my $success = try {
+		$input_var = get_input_variant_data($line_hash->{Uploaded_variation});
+		1;
+	} catch {
+		warn "ERROR : $_\n";
+		return 0;
+	};
+	return undef unless $success; 		# an undef returned from plugin->run() will filter that line from the output
+	
+	#my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
 	
 	my $genomic = $self->get_genomic_data($vfoa);
 	
 	my %default_data = %Sanger::Cosmic::Dias::Constants::DEFAULT_COLUMN_VALUES;
+	#TODO - lock_keys() provides no advantage because we merge
 	lock_keys(%default_data);	
 	my $merge_hash = Hash::Merge->new('RIGHT_PRECEDENT');
 	
