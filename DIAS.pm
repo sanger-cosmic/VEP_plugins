@@ -111,8 +111,6 @@ sub run {
 	};
 	return undef unless $success; 		# an undef returned from plugin->run() will filter that line from the output
 	
-	#my $input_var = get_input_variant_data($line_hash->{Uploaded_variation});
-	
 	my $genomic = $self->get_genomic_data($vfoa);
 	
 	my %default_data = %Sanger::Cosmic::Dias::Constants::DEFAULT_COLUMN_VALUES;
@@ -127,6 +125,7 @@ sub run {
 			GENOME_WT 				=> $genomic->{WT},
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
+			HGVSg_OFFSET			=> $genomic->{hgvs_offset},
 			GENOME_VER 				=> $self->{config}->{assembly},
 			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele},
 			CHR 					=> $genomic->{CHR},
@@ -188,9 +187,10 @@ sub run {
 			AA_SYNTAX 				=> $protein->{SYNTAX},
 			GENOME_START			=> $genomic->{START},
 			GENOME_STOP	 			=> $genomic->{STOP},
-			GENOME_WT 				=> $cds->{WT},
-			GENOME_MT				=> $cds->{MT},
+			GENOME_WT 				=> $genomic->{WT},
+			GENOME_MT				=> $genomic->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
+			HGVSg_OFFSET 			=> $genomic->{hgvs_offset},
 			GENOME_VER 				=> $self->{config}->{assembly},
 			PERCENT_MUT_ALLELE 		=> $input_var->{percent_mut_allele},
 			CHR 					=> $tva->variation_feature->seq_region_name,
@@ -291,6 +291,7 @@ sub get_genomic_data {
 			DBVERSION 				=> $genome_formatter->db_version,
 			VARIANT_ONTOLOGY 		=> $genome_formatter->variant_ontology,
 			CONSEQUENCES_ONTOLOGY 	=> $genome_formatter->consequences_ontology,
+			HGVS_OFFSET				=> $genome_formatter->hgvs_offset,
 			};
 }
 #--------------------------------------------------------------------------------#
