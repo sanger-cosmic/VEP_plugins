@@ -1,7 +1,7 @@
 =head1 LICENSE
 
 Copyright [1999-2015] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute
-Copyright [2016-2017] EMBL-European Bioinformatics Institute
+Copyright [2016-2018] EMBL-European Bioinformatics Institute
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -230,7 +230,7 @@ sub run {
   return {} unless $data && scalar @$data;
 
   return {
-    PHENOTYPES => $self->{config}->{json} ? $data : join(",", map {$_->{phenotype} =~ tr/ ;/\_\_/; $_->{phenotype}} @$data)
+    PHENOTYPES => $self->{config}->{output_format} eq "json" ? $data : join(",", map {$_->{phenotype} =~ tr/ ;/\_\_/; $_->{phenotype}} @$data)
   };
 }
 

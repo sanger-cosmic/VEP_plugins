@@ -1,7 +1,7 @@
 =head1 LICENSE
 
 Copyright [1999-2015] Wellcome Trust Sanger Institute and the EMBL-European Bioinformatics Institute
-Copyright [2016-2017] EMBL-European Bioinformatics Institute
+Copyright [2016-2018] EMBL-European Bioinformatics Institute
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,27 +42,46 @@ limitations under the License.
  in your path to use this plugin. The dbNSFP data file can be downloaded from
  https://sites.google.com/site/jpopgen/dbNSFP.
 
- Note that the 3.x releases of dbNSFP use GRCh38/hg38 coordinates; to use
- this plugin with GRCh37/hg19 data, please download instead one of the 2.9.x
- releases of dbNSFP.
- 
- The file must be processed and indexed by tabix before use by this plugin:
- 
- > wget ftp://dbnsfp:dbnsfp@dbnsfp.softgenetics.com/dbNSFPv3.2a.zip
- > unzip dbNSFPv3.2a.zip
- > head -n1 dbNSFP3.2a_variant.chr1 > h
- > cat dbNSFP3.2a_variant.chr* | grep -v ^#chr | sort -k1,1 -k2,2n - | cat h - | bgzip -c > dbNSFP.gz
+ Release 3.5a of dbNSFP uses GRCh38/hg38 coordinates and GRCh37/hg19
+ coordinates. 
+ To use plugin with GRCh37/hg19 data:
+ > wget ftp://dbnsfp:dbnsfp@dbnsfp.softgenetics.com/dbNSFPv3.5a.zip
+ > unzip dbNSFPv3.5a.zip
+ > head -n1 dbNSFP3.5a_variant.chr1 > h
+ > cat dbNSFP3.5a_variant.chr* | grep -v ^#chr | awk '$8 != "."' | sort -k8,8 -k9,9n - | cat h - | bgzip -c > dbNSFP_hg19.gz
+ > tabix -s 8 -b 9 -e 9 dbNSFP_hg19.gz
+
+ To use plugin with GRCh38/hg38 data:
+ > wget ftp://dbnsfp:dbnsfp@dbnsfp.softgenetics.com/dbNSFPv3.5a.zip
+ > unzip dbNSFPv3.5a.zip
+ > head -n1 dbNSFP3.5a_variant.chr1 > h
+ > cat dbNSFP3.5a_variant.chr* | grep -v ^#chr | sort -k1,1 -k2,2n - | cat h - | bgzip -c > dbNSFP.gz
  > tabix -s 1 -b 2 -e 2 dbNSFP.gz
  
  When running the plugin you must list at least one column to retrieve from the
  dbNSFP file, specified as parameters to the plugin e.g.
  
  --plugin dbNSFP,/path/to/dbNSFP.gz,LRT_score,GERP++_RS
+
+ You may include all columns with ALL; this fetches a large amount of data per
+ variant!:
+ 
+ --plugin dbNSFP,/path/to/dbNSFP.gz,ALL
  
  Tabix also allows the data file to be hosted on a remote server. This plugin is
  fully compatible with such a setup - simply use the URL of the remote file:
  
  --plugin dbNSFP,http://my.files.com/dbNSFP.gz,col1,col2
+
+ The plugin replaces occurrences of ';' with ',' and '|' with '&'. However, some
+ data field columns, e.g. Interpro_domain, use the replacement characters. We
+ added a file with replacement logic for customising the required replacement
+ of ';' and '|' in dbNSFP data columns. In addition to the default replacements
+ (; to , and | to &) users can add customised replacements. Users can either modify
+ the file dbNSFP_replacement_logic in the VEP_plugins directory or provide their own
+ file as second argument when calling the plugin:
+
+ --plugin dbNSFP,/path/to/dbNSFP.gz,/path/to/dbNSFP_replacement_logic,LRT_score,GERP++_RS
  
  Note that transcript sequences referred to in dbNSFP may be out of sync with
  those in the latest release of Ensembl; this may lead to discrepancies with
@@ -114,11 +133,25 @@ sub new {
   foreach my $h(qw(alt Ensembl_transcriptid)) {
     die "ERROR: Could not find required column $h in $file\n" unless grep {$_ eq $h} @{$self->{headers}};
   }
-  
+
+  my $i = 1; 
+  # check if 2nd argument is a file that specifies replacement logic
+  # read replacement logic 
+  my $replacement_file = $self->params->[$i];
+  if (defined $replacement_file && -e $replacement_file) {
+    $self->add_replacement_logic($replacement_file);  
+    $i++;
+  } else {
+    $self->add_replacement_logic();  
+  } 
+ 
   # get required columns
-  my $i = 1;
   while(defined($self->params->[$i])) {
     my $col = $self->params->[$i];
+    if($col eq 'ALL') {
+      $self->{cols} = {map {$_ => 1} @{$self->{headers}}};
+      last;
+    }
     die "ERROR: Column $col not found in header for file $file. Available columns are:\n".join(",", @{$self->{headers}})."\n" unless grep {$_ eq $col} @{$self->{headers}};
     
     $self->{cols}->{$self->params->[$i]} = 1;
@@ -194,7 +227,7 @@ sub get_header_info {
       }
     }
 
-    $self->{_header_info} = {map {$_ => $rm_descs{$_} || ($_.' from dbNSFP file '.$self->{file})} keys %{$self->{cols}}};
+    $self->{_header_info} = {map {$_ => $rm_descs{$_} || ($_.' from dbNSFP file')} keys %{$self->{cols}}};
   }
   
   return $self->{_header_info};
@@ -221,16 +254,29 @@ sub run {
 
   my $data;
   my $pos;
-  
-  foreach my $tmp_data(@{$self->get_data($vf->{chr}, $vf->{start} - 1, $vf->{end})}) {
 
+  my $assembly = $self->{config}->{assembly};
+  my $chr = ($vf->{chr} =~ /MT/i) ? 'M' : $vf->{chr};
+  foreach my $tmp_data(@{$self->get_data($chr, $vf->{start} - 1, $vf->{end})}) {
     # compare allele and transcript
-    if (exists $tmp_data->{'pos(1-based)'}) {
-      $pos = $tmp_data->{'pos(1-based)'}
+    if ($assembly eq 'GRCh37') {
+      if (exists $tmp_data->{'pos(1-coor)'}) {
+        # for dbNSFP version 2.9.1
+        $pos = $tmp_data->{'pos(1-coor)'}
+      } elsif (exists $tmp_data->{'hg19_pos(1-based)'}) {
+        # for dbNSFP version 3.5c indexed for hg19/(=GRCh37)
+        $pos =  $tmp_data->{'hg19_pos(1-based)'}
+      } else {
+        die "dbNSFP file does not contain required columns (pos(1-coor) for version 2.9.1 or hg19_pos(1-based) for version 3.5c) to use with GRCh37";
+      }
     } else {
-      # for dbNSFP version 2.9.1
-      $pos = $tmp_data->{'pos(1-coor)'}
+      if (exists $tmp_data->{'pos(1-based)'}) {
+        $pos = $tmp_data->{'pos(1-based)'}
+      } else {
+        die "dbNSFP file does not contain required column pos(1-based) to use with GRCh38";
+      }
     }
+
     next unless
       $pos == $vf->{start} &&
       defined($tmp_data->{alt}) &&
@@ -268,12 +314,23 @@ sub run {
   return {} unless scalar keys %$data;
   
   # get required data
-  my %return =
-    map {$_ => $data->{$_}}
-    map {$data->{$_} =~ tr/\;\|/\,\&/; $_}
-    grep {$data->{$_} ne '.'}              # ignore missing data
-    grep {defined($self->{cols}->{$_})}  # only include selected cols
-    keys %$data;
+  my @from = @{$self->{replacement}->{default}->{from}};
+  my @to = @{$self->{replacement}->{default}->{to}};
+
+  my %return;
+  foreach my $colname (keys %$data) {
+    next if(!defined($self->{cols}->{$colname}));
+    next if($data->{$colname} eq '.');
+
+    my @from = @{$self->{replacement}->{default}->{from}};
+    my @to   = @{$self->{replacement}->{default}->{to}};
+    @from    = @{$self->{replacement}->{$colname}->{from}} if (defined $self->{replacement}->{$colname});
+    @to      = @{$self->{replacement}->{$colname}->{to}} if (defined $self->{replacement}->{$colname});
+    for my $i (0 .. $#from) {
+      $data->{$colname} =~ s/\Q$from[$i]\E/$to[$i]/g;
+    }
+    $return{$colname} = $data->{$colname};
+  }
   
   return \%return;
 }
@@ -299,5 +356,28 @@ sub get_end {
   return $_[1]->{'pos(1-based)'};
 }
 
+sub add_replacement_logic {
+  my $self = shift;
+  my $file = shift;
+  $file ||= 'dbNSFP_replacement_logic';
+  if (! -e $file) {
+    $self->{replacement}->{default}->{from} = [';', '|'];
+    $self->{replacement}->{default}->{to} = [',', '&'];
+  } else {
+    open FILE, $file;
+    while(<FILE>) {
+      chomp;
+      next if /^colname/;
+      my ($colname, $from, $to) = split/\s+/;
+      die ("ERROR: 3 values separated by whitespace are required: colname from to.") if(!($colname && $from && $to));
+      push @{$self->{replacement}->{$colname}->{from}}, $from;
+      push @{$self->{replacement}->{$colname}->{to}}, $to;
+    }
+    close FILE;
+    die("ERROR: No default replacement logic has been specified.\n") if (!defined $self->{replacement}->{default});
+  }
+}
+
 1;
+
 
