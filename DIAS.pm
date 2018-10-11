@@ -103,10 +103,10 @@ sub run {
 	
 	my $input_var;
 	my $success = try {
-		$input_var = get_input_variant_data($line_hash->{Uploaded_variation});
+		$input_var = parse_input_variant($line_hash->{Uploaded_variation});
 		1;
 	} catch {
-		warn "ERROR : $_\n";
+		warn "WARNING : $_\n";
 		return 0;
 	};
 	return undef unless $success; 		# an undef returned from plugin->run() will filter that line from the output
@@ -257,7 +257,7 @@ sub is_within_gene_boundary {
 }
 #--------------------------------------------------------------------------------#
 #TODO - Use Text::CSV_XS to parse this
-sub get_input_variant_data {
+sub parse_input_variant {
 	my $input_csv = shift;
 	my @cols = split(',', $input_csv);
 	my $var = Sanger::Cosmic::Dias::GenomicVariantDIAS->new(chr 				=> $cols[0],
