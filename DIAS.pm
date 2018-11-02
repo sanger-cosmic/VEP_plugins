@@ -100,6 +100,7 @@ sub get_header_info {
 sub run {
 	my ($self, $vfoa, $line_hash) = @_;
 	#my ($self, $tva, $line_hash) = @_;
+	my $assembly_ver = $self->{config}->{assembly};
 	
 	my $input_var;
 	my $success = try {
@@ -120,13 +121,17 @@ sub run {
 	
 	if ($vfoa->isa('Bio::EnsEMBL::Variation::IntergenicVariationAllele')) {
 		my %intergenic_data = (
-			GENOME_START			=> $genomic->{START},
-			GENOME_STOP	 			=> $genomic->{STOP},
+			#GENOME_START			=> $genomic->{START},
+			#GENOME_STOP	 			=> $genomic->{STOP},
+			GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
+			GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
+			GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
+			GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
 			GENOME_WT 				=> $genomic->{WT},
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET			=> $genomic->{HGVS_OFFSET},
-			GENOME_VER 				=> $self->{config}->{assembly},
+			GENOME_VER 				=> $assembly_ver,
 			PERCENT_MUT_ALLELE 		=> $input_var->percent_mut_allele,
 			CHR 					=> $genomic->{CHR},
 			STRAND 					=> $genomic->{STRAND},	#VEP produces a 'STRAND' column, so no need for this
@@ -186,13 +191,17 @@ sub run {
 			AA_WT					=> $protein->{WT},
 			AA_MT 					=> $aa_mut,
 			AA_SYNTAX 				=> $protein->{SYNTAX},
-			GENOME_START			=> $genomic->{START},
-			GENOME_STOP	 			=> $genomic->{STOP},
+			#GENOME_START			=> $genomic->{START},
+			#GENOME_STOP	 			=> $genomic->{STOP},
+			GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
+			GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
+			GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
+			GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
 			GENOME_WT 				=> $genomic->{WT},
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET 			=> $genomic->{HGVS_OFFSET},
-			GENOME_VER 				=> $self->{config}->{assembly},
+			GENOME_VER 				=> $assembly_ver,
 			PERCENT_MUT_ALLELE 		=> $input_var->percent_mut_allele,
 			CHR 					=> $tva->variation_feature->seq_region_name,
 			STRAND 					=> $cds->{STRAND},
