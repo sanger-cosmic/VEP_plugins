@@ -108,6 +108,7 @@ sub run {
 		1;
 	} catch {
 		warn "WARNING : $_\n";
+		warn $line_hash->{Uploaded_variation}."\n";
 		return 0;
 	};
 	return undef unless $success; 		# an undef returned from plugin->run() will filter that line from the output
@@ -121,14 +122,21 @@ sub run {
 	
 	if ($vfoa->isa('Bio::EnsEMBL::Variation::IntergenicVariationAllele')) {
 		my %intergenic_data = (
-			#GENOME_START			=> $genomic->{START},
-			#GENOME_STOP	 			=> $genomic->{STOP},
-			GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
-			GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
-			GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
-			GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
+			GENOME_START			=> $genomic->{START},
+			GENOME_STOP	 			=> $genomic->{STOP},
+			#GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
+			#GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
+			#GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
+			#GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
+			GENOME_START_ORIGINAL	=> $genomic->{START_ORIGINAL},
+			GENOME_STOP_ORIGINAL	=> $genomic->{STOP_ORIGINAL},
 			GENOME_WT 				=> $genomic->{WT},
+			GENOME_WT_ORIGINAL		=> $genomic->{WT_ORIGINAL},
 			GENOME_MT				=> $genomic->{MT},
+			GENOME_MT_ORIGINAL		=> $genomic->{MT_ORIGINAL},
+			GENOME_STRAND_ORIGINAL	=> $genomic->{STRAND},
+			#GENOME_STRAND_ORIGINAL	=> $line_hash->{STRAND} < 0 ? '-' : '+',
+			#GENOME_STRAND_ORIGINAL	=> $input_var->strand,
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET			=> $genomic->{HGVS_OFFSET},
 			GENOME_VER 				=> $assembly_ver,
@@ -191,14 +199,21 @@ sub run {
 			AA_WT					=> $protein->{WT},
 			AA_MT 					=> $aa_mut,
 			AA_SYNTAX 				=> $protein->{SYNTAX},
-			#GENOME_START			=> $genomic->{START},
-			#GENOME_STOP	 			=> $genomic->{STOP},
-			GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
-			GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
-			GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
-			GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
+			GENOME_START			=> $genomic->{START},
+			GENOME_STOP	 			=> $genomic->{STOP},
+			#GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
+			#GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
+			#GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
+			#GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
+			GENOME_START_ORIGINAL	=> $genomic->{START_ORIGINAL},
+			GENOME_STOP_ORIGINAL	=> $genomic->{STOP_ORIGINAL},
 			GENOME_WT 				=> $genomic->{WT},
+			GENOME_WT_ORIGINAL		=> $genomic->{WT_ORIGINAL},
 			GENOME_MT				=> $genomic->{MT},
+			GENOME_MT_ORIGINAL		=> $genomic->{MT_ORIGINAL},
+			GENOME_STRAND_ORIGINAL 	=> $genomic->{STRAND},
+			#GENOME_STRAND_ORIGINAL 	=> $line_hash->{STRAND} < 0 ? '-' : '+',
+			#GENOME_STRAND_ORIGINAL 	=> $input_var->strand,
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET 			=> $genomic->{HGVS_OFFSET},
 			GENOME_VER 				=> $assembly_ver,
@@ -293,9 +308,13 @@ sub get_genomic_data {
 	#my $genome_formatter = Sanger::Cosmic::Dias::GenomeFormatter->new(variation_allele => $vfoa, _slice_adaptor => $self->{config}->{sa});
 	my $genome_formatter = Sanger::Cosmic::Dias::GenomeFormatter->new(variation_allele => $vfoa);
 	return {WT 						=> $genome_formatter->wt_allele,
+			WT_ORIGINAL				=> $genome_formatter->wt_allele_original,
 			MT 						=> $genome_formatter->mut_allele,
+			MT_ORIGINAL				=> $genome_formatter->mut_allele_original,
 			START 					=> $genome_formatter->start,
+			START_ORIGINAL			=> $genome_formatter->start_original,
 			STOP 					=> $genome_formatter->stop,
+			STOP_ORIGINAL			=> $genome_formatter->stop_original,
 			CHR 					=> $genome_formatter->chromosome,
 			STRAND 					=> $genome_formatter->strand,
 			DB 						=> $genome_formatter->db,
