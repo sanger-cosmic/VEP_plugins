@@ -82,7 +82,7 @@ sub run {
     if(grep {$_->SO_term eq 'frameshift_variant'} @ocs) {
         
         # can't do it for splice sites
-        return {} if grep {$_->SO_term =~ /splice/} @ocs;
+        #return {} if grep {$_->SO_term =~ /splice/} @ocs;
         
         my $tv = $tva->transcript_variation;
         my $tr = $tv->transcript;
