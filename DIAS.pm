@@ -329,8 +329,12 @@ sub get_genomic_data {
 sub get_aa_mut_allele {
 	my ($protein, $line_hash) = @_;
 	my $allele = $protein->{MT};
-	if (/frameshift_variant/ ~~ $protein->{CONSEQUENCES_ONTOLOGY}) {
-		$allele = $line_hash->{DownstreamProtein}."*";
+	if (/frameshift_variant/ ~~ $protein->{CONSEQUENCES_ONTOLOGY}) {	# Only want to annotate frameshifts which have a known protein mutation
+		if ($protein->{SYNTAX} ne 'p.?' && $line_hash->{HGVSp} !~ /p.Met1.*?\?/) {	# Skip frameshifts with unknown protein mutation and start_lost consequences that look like p.Met1? (the latter don't have a known syntax, therefore we cannot provide an AA_MUT allele)
+			$allele = $line_hash->{DownstreamProtein};
+			warn "mut_allele is empty for frameshift variant - ".$line_hash->{Uploaded_variation}."\n" unless $allele;
+			$allele .= "*";	# Add the stop codon
+		}
 	}
 	return $allele || undef;
 }
