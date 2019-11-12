@@ -84,7 +84,7 @@ sub version {
 }
 #--------------------------------------------------------------------------------#
 sub feature_types {
-	return ['Transcript', 'Intergenic'];
+	return ['Feature', 'Intergenic'];	# Need 'Feature' for annotations on regulatory features (in the future)
 }
 #--------------------------------------------------------------------------------#
 sub variant_feature_types {
