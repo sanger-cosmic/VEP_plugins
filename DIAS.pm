@@ -100,7 +100,7 @@ sub get_header_info {
 sub run {
 	my ($self, $vfoa, $line_hash) = @_;
 	#my ($self, $tva, $line_hash) = @_;
-	my $assembly_ver = $self->{config}->{assembly};
+	my $assembly_ver = $self->config->{assembly};
 	
 	my $input_var;
 	my $success = try {
@@ -124,10 +124,6 @@ sub run {
 		my %intergenic_data = (
 			GENOME_START			=> $genomic->{START},
 			GENOME_STOP	 			=> $genomic->{STOP},
-			#GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
-			#GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
-			#GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
-			#GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
 			GENOME_START_ORIGINAL	=> $genomic->{START_ORIGINAL},
 			GENOME_STOP_ORIGINAL	=> $genomic->{STOP_ORIGINAL},
 			GENOME_WT 				=> $genomic->{WT},
@@ -135,8 +131,6 @@ sub run {
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_MT_ORIGINAL		=> $genomic->{MT_ORIGINAL},
 			GENOME_STRAND_ORIGINAL	=> $genomic->{STRAND},
-			#GENOME_STRAND_ORIGINAL	=> $line_hash->{STRAND} < 0 ? '-' : '+',
-			#GENOME_STRAND_ORIGINAL	=> $input_var->strand,
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET			=> $genomic->{HGVS_OFFSET},
 			GENOME_VER 				=> $assembly_ver,
@@ -152,7 +146,7 @@ sub run {
 			ID_FEATURE_TYPE_COSMIC  => $Sanger::Cosmic::Dias::Constants::ID_FEATURE_TYPE_INTERGENIC,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->confirmed,
 			ID_MUT_VERIF_STATUS 	=> $input_var->verified,
-			#ID_MUTATION_CURRENT 	=> join(';', @{$input_var->id_mutation_current}),
+			RESISTANT_MUT 			=> $input_var->resistant,
 			ID_MUTATION_CURRENT 	=> $input_var->id_mutation_current,
 			ID_MUT_TYPE 			=> $genomic->{VARIANT_ONTOLOGY},
 			PARENT_MUT_LENGTH 		=> defined $genomic->{MT} ? length($genomic->{MT}) : '',
@@ -201,10 +195,6 @@ sub run {
 			AA_SYNTAX 				=> $protein->{SYNTAX},
 			GENOME_START			=> $genomic->{START},
 			GENOME_STOP	 			=> $genomic->{STOP},
-			#GENOME_START_GRCh37		=> $assembly_ver eq 'GRCh37' ? $genomic->{START} : undef,
-			#GENOME_STOP_GRCh37	 	=> $assembly_ver eq 'GRCh37' ? $genomic->{STOP} : undef,
-			#GENOME_START_GRCh38		=> $assembly_ver eq 'GRCh38' ? $genomic->{START} : undef,
-			#GENOME_STOP_GRCh38	 	=> $assembly_ver eq 'GRCh38' ? $genomic->{STOP} : undef,
 			GENOME_START_ORIGINAL	=> $genomic->{START_ORIGINAL},
 			GENOME_STOP_ORIGINAL	=> $genomic->{STOP_ORIGINAL},
 			GENOME_WT 				=> $genomic->{WT},
@@ -212,8 +202,6 @@ sub run {
 			GENOME_MT				=> $genomic->{MT},
 			GENOME_MT_ORIGINAL		=> $genomic->{MT_ORIGINAL},
 			GENOME_STRAND_ORIGINAL 	=> $genomic->{STRAND},
-			#GENOME_STRAND_ORIGINAL 	=> $line_hash->{STRAND} < 0 ? '-' : '+',
-			#GENOME_STRAND_ORIGINAL 	=> $input_var->strand,
 			GENOME_SYNTAX 			=> $line_hash->{HGVSg},
 			HGVSg_OFFSET 			=> $genomic->{HGVS_OFFSET},
 			GENOME_VER 				=> $assembly_ver,
@@ -233,7 +221,7 @@ sub run {
 			ID_FEATURE_TYPE_COSMIC  => $id_feature_type_cosmic,
 			ID_MUT_SOMATIC_STATUS 	=> $input_var->confirmed,
 			ID_MUT_VERIF_STATUS 	=> $input_var->verified,
-			#ID_MUTATION_CURRENT 	=> join(';', @{$input_var->id_mutation_current}),
+			RESISTANT_MUT 			=> $input_var->resistant,
 			ID_MUTATION_CURRENT 	=> $input_var->id_mutation_current,
 			ID_MUT_TYPE 			=> $cds->{VARIANT_ONTOLOGY},
 			PARENT_MUT_LENGTH 		=> defined $cds->{MT} ? length($cds->{MT}) : '',
@@ -298,6 +286,7 @@ sub parse_input_variant {
 															#id_mutation_current    => [split(';', $cols[10])],
 															id_study 			=> $cols[11] || undef,
 															id_paper 			=> $cols[12] || undef,
+															resistant 			=> $cols[13] eq 'y' ? 'y' : undef,
 															);
 	return $var;
 }
