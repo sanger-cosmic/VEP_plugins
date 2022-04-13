@@ -140,6 +140,24 @@ sub run {
     $new_pep =~ s/\*.*//;
     my $pep_with_var = $codon_seq_full->translate(undef, undef, undef, $codon_table)->seq();
     $pep_with_var =~ s/\*.*//;
+
+    # bh4 - Trim the peptide to start with the first _changed_ amino acid (as per HGVS recommendations)
+    my $ref_cds_seq = substr $cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
+    my $ref_cds = Bio::Seq->new(-seq => $ref_cds_seq, -moltype => 'dna', -alphabet => 'dna');
+    my $ref_peptide = $ref_cds->translate(undef, undef, undef, $codon_table)->seq;
+    my $clip_position = 0;
+    for (my $i=0; $i<=length($ref_peptide); $i++) {
+        my $ref_aa = substr($ref_peptide, $i, 1);
+        my $mut_aa = substr($new_pep, $i, 1);
+
+        if ($ref_aa eq $mut_aa) {
+            $clip_position++;
+        } else {
+            last;
+        }
+    }
+    $new_pep = substr($new_pep, $clip_position);
+
     my $translation = defined($tr->{_variation_effect_feature_cache}->{peptide})
                     ? $tr->{_variation_effect_feature_cache}->{peptide}
                     : $tr->translation->seq;
