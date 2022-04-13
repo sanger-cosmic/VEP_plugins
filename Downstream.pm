@@ -96,7 +96,7 @@ sub run {
 
     return {} unless grep { $_ eq 'frameshift_variant' } @SO_terms;
 
-    return {} if grep { /splice/ } @SO_terms;
+    #return {} if grep { /splice/ } @SO_terms;
 
     my $tv = $tva->transcript_variation;
     my $tr = $tv->transcript;
