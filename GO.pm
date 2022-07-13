@@ -80,7 +80,7 @@ sub new {
   $reg = 'Bio::EnsEMBL::Registry';
   
   # Check if parameter "remote" is provided to revert to old GO.pm functionality
-  $self->{use_remote} = grep($_ eq "remote", @{$self->params});
+  $self->{use_remote} = grep($_ eq "remote", @{$self->{params}});
   
   # Check if the tabix command is available
   if ( !$self->{use_remote} and !`which tabix 2>&1` =~ /tabix$/ ) {
@@ -199,8 +199,13 @@ sub _prepare_filename {
   
   # Prepare directory to store files
   my $dir = ""; # work in current directory by default
+<<<<<<< HEAD
   if (@{$self->params}) {
     $dir = $self->params->[0];
+=======
+  if (@{$self->{params}}) {
+    $dir = $self->{params}->[0];
+>>>>>>> d5ce08af9ccdcb055f4f9721de49fa8d0a44142c
     $dir =~ s/\/?$/\//; # ensure path ends with slash
     die "ERROR: directory $dir does not exist\n" unless -e -d $dir;
   }
@@ -209,6 +214,7 @@ sub _prepare_filename {
   my $pkg      = __PACKAGE__.'.pm';
   my $species  = $config->{species};
   my $version  = $config->{db_version} || $reg->software_version;
+<<<<<<< HEAD
   my $assembly = $config->{assembly};
   die "specify assembly using --assembly [assembly]\n" unless defined($assembly);
 
@@ -216,6 +222,14 @@ sub _prepare_filename {
   if( $species eq 'homo_sapiens' || $species eq 'human'){
     $assembly ||= $config->{human_assembly};
     push @basename, $assembly;
+=======
+  my @basename = ($pkg, $species, $version);
+
+  if( $species eq 'homo_sapiens' || $species eq 'human'){
+    my $assembly = $config->{assembly} || $config->{human_assembly};
+    die "specify assembly using --assembly [assembly]\n" unless defined $assembly;
+    push @basename, $assembly if defined $assembly;
+>>>>>>> d5ce08af9ccdcb055f4f9721de49fa8d0a44142c
   }
   return $dir.join("_", @basename).".gff.gz";
 }
@@ -225,7 +239,11 @@ sub _generate_gff {
 
   my $config = $self->{config};
   die("ERROR: Cannot create GFF file in offline mode\n") if $config->{offline};
+<<<<<<< HEAD
   # die("ERROR: Cannot create GFF file in REST mode\n") if $config->{rest};
+=======
+  die("ERROR: Cannot create GFF file in REST mode\n") if $config->{rest};
+>>>>>>> d5ce08af9ccdcb055f4f9721de49fa8d0a44142c
   
   # test bgzip
   die "ERROR: bgzip does not seem to be in your path\n" unless `which bgzip 2>&1` =~ /bgzip$/;
@@ -255,7 +273,11 @@ sub _generate_gff {
       '.' AS frame,
       transcript.stable_id AS transcript_stable_id,
       x.display_label AS go_term,
+<<<<<<< HEAD
       REPLACE(x.description, " ", "_") AS go_term_description
+=======
+      x.description AS go_term_description
+>>>>>>> d5ce08af9ccdcb055f4f9721de49fa8d0a44142c
       
     FROM transcript
     $join_translation_table
@@ -310,6 +332,7 @@ sub _get_GO_terms_id {
 sub _write_GO_terms_to_file {
   my ($sth, $file) = @_;
   my $file_tmp = $file.".tmp";
+<<<<<<< HEAD
   
   # Open lock
   my $lock = "$file\.lock";
@@ -354,6 +377,64 @@ sub _write_GO_terms_to_file {
 sub _remote_run {
   my ($self, $tva) = @_;
   
+=======
+  
+  # Open lock
+  my $lock = "$file\.lock";
+  open LOCK, ">$lock" or die "ERROR: cannot write to lock file $lock\n";
+  print LOCK "1\n";
+  close LOCK;
+
+  open OUT, " | bgzip -c > $file_tmp" or die "ERROR: cannot write to file $file_tmp\n";
+  print OUT "##gff-version 1.10\n"; # GFF file header
+
+  # For a single transcript, append all of its GO terms to $transcript_info;
+  # when there is a new transcript, write $transcript_info to file and repeat
+  my $transcript_info;
+  my $previous_transcript = "";
+  while(my $row = $sth->fetchrow_arrayref()) {
+    my ($transcript_id, $go_term, $description) = splice(@$row, -3);
+
+    if ($transcript_id ne $previous_transcript) {
+      # If not the same transcript, write previous transcript info to file
+      print OUT $transcript_info."\n" if defined($transcript_info);
+
+      # Set this new transcript info
+      $previous_transcript = $transcript_id;
+      $row = join("\t", map {defined($_) ? $_ : '.'} @$row);
+      $transcript_info = $row."\tID=$transcript_id;Ontology_term=";
+    } else {
+      # Append comma before appending another GO term
+      $transcript_info .= ","
+    }
+
+    if ( defined($description) ) {
+      $description =~ s/ /_/g; # Replace spaces with underscores
+
+      $description =~ s/,_/_-_/g; # Avoid commas followed by an underscore, e.g.:
+      # GO:0045892:negative_regulation_of_transcription,_DNA-templated
+
+      $description =~ s/,/-/g; # Avoid commas in other situtations, e.g.:
+      # GO:0016316:phosphatidylinositol-3,4-bisphosphate_4-phosphatase_activity
+    } else {
+      $description = "";
+    }
+
+    # Append GO term and its description
+    $transcript_info .= "$go_term:$description";
+  }
+  # Write info of last transcript to file
+  print OUT $transcript_info."\n" if defined($transcript_info);
+
+  close OUT;
+  unlink($lock);
+  return $file_tmp;
+}
+
+sub _remote_run {
+  my ($self, $tva) = @_;
+  
+>>>>>>> d5ce08af9ccdcb055f4f9721de49fa8d0a44142c
   my $tr = $tva->transcript;
   return {} unless defined($tr);
   
