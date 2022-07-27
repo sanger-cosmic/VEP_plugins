@@ -95,7 +95,7 @@ sub run {
     my @SO_terms = map { $_->SO_term } @{$tva->get_all_OverlapConsequences};
 
     return {} unless grep { $_ eq 'frameshift_variant' } @SO_terms;
-
+    #bh4 change.
     #return {} if grep { /splice/ } @SO_terms;
 
     my $tv = $tva->transcript_variation;
@@ -104,6 +104,10 @@ sub run {
     my $cds_seq = defined($tr->{_variation_effect_feature_cache})
                 ? $tr->{_variation_effect_feature_cache}->{translateable_seq}
                 : $tr->translateable_seq;
+
+    # tm6 change
+    # Keeping the original sequence before substring modification below
+    my $original_cds_seq = $cds_seq;
 
     my ($start, $end) = ($tv->cds_start, $tv->cds_end);
 
@@ -142,7 +146,7 @@ sub run {
     $pep_with_var =~ s/\*.*//;
 
     # bh4 - Trim the peptide to start with the first _changed_ amino acid (as per HGVS recommendations)
-    my $ref_cds_seq = substr $cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
+    my $ref_cds_seq = substr $original_cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
     my $ref_cds = Bio::Seq->new(-seq => $ref_cds_seq, -moltype => 'dna', -alphabet => 'dna');
     my $ref_peptide = $ref_cds->translate(undef, undef, undef, $codon_table)->seq;
     my $clip_position = 0;
