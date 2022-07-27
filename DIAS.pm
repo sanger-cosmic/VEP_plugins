@@ -286,7 +286,7 @@ sub parse_input_variant {
 															#id_mutation_current    => [split(';', $cols[10])],
 															id_study 			=> $cols[11] || undef,
 															id_paper 			=> $cols[12] || undef,
-															resistant 			=> $cols[13] eq 'y' ? 'y' : undef,
+															resistant 			=> defined $cols[13] eq 'y' ? 'y' : undef,
 															);
 	return $var;
 }
