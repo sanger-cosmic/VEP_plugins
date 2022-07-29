@@ -158,7 +158,8 @@ sub run {
                     ? $tr->{_variation_effect_feature_cache}->{peptide}
                     : $tr->translation->seq;
 
-    my ($pep_start, $pep_end) = ($tv->translation_start, $tv->translation_end);
+    # tm6 - We need to use unshifted coordinates to match previous releases ProteinLengthChange
+    my ($pep_start, $pep_end) = ($tv->translation_start_unshifted, $tv->translation_end_unshifted);
 
     my $new_length = ($pep_start < $pep_end ? $pep_start : $pep_end) + length($new_pep);
 
