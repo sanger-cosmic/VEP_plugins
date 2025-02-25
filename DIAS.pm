@@ -101,7 +101,6 @@ sub run {
 	my ($self, $vfoa, $line_hash) = @_;
 	#my ($self, $tva, $line_hash) = @_;
 	my $assembly_ver = $self->config->{assembly};
-	
 	my $input_var;
 	my $success = try {
 		$input_var = parse_input_variant($line_hash->{Uploaded_variation});
@@ -162,9 +161,10 @@ sub run {
 		my $tva = $vfoa;
 		my $annotation_formatter = Sanger::Cosmic::Dias::VEPAnnotationFormatter->new(transcript_variation_allele => $tva,
 																					 assembly_version => $self->{config}->{assembly});
-		
 		my $cds = $annotation_formatter->get_cds($tva);
-		my $mrna = $annotation_formatter->get_mrna($tva);
+		# mrna are currently not used in VEP DIAS
+		# This was implemented as there was talk of annotating on the mRNA at some point (HGVS r.xxx syntax)
+		#my $mrna = $annotation_formatter->get_mrna($tva);
 		my $protein = undef;
 		
 		if ($tva->transcript->translation) {	# If protein-coding transcript then populate. Leave empty for all other transcript-types (pseudogenes, lincRNAs etc)
