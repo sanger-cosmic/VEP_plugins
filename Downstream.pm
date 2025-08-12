@@ -95,7 +95,9 @@ sub run {
     my @SO_terms = map { $_->SO_term } @{$tva->get_all_OverlapConsequences};
 
     return {} unless grep { $_ eq 'frameshift_variant' } @SO_terms;
-    #bh4 change.
+    #bh4 change e!93:
+    # Without this change, Downstream plugin would not run on following mutation
+    # COSM330645, p.K196Nfs*6, SO:0001589:frameshift_variant,SO:0001630:splice_region_variant
     #return {} if grep { /splice/ } @SO_terms;
 
     my $tv = $tva->transcript_variation;
@@ -105,7 +107,7 @@ sub run {
                 ? $tr->{_variation_effect_feature_cache}->{translateable_seq}
                 : $tr->translateable_seq;
 
-    # tm6 change
+    # tm6 change e!106
     # Keeping the original sequence before substring modification below
     my $original_cds_seq = $cds_seq;
 
@@ -114,7 +116,13 @@ sub run {
     substr($cds_seq, $start - 1, $end - $start + 1) = $tva->seq_length > 0 ? $tva->feature_seq : '';
 
     my $low_pos = $start > $end ? $end : $start;
-    my $last_complete_codon = $low_pos - ( $low_pos  % 3 );
+    #  e!93 original:
+    my $last_complete_codon = $low_pos - ( ( ( $low_pos - 1 ) % 3 ) + 1 );
+    # e!114 change:
+    #my $last_complete_codon = $low_pos - ( $low_pos  % 3 );
+    # Seems to cause issues we get KERQ instead of NKERQ
+    # for COSM330645, p.K196Nfs*6. Here K at position 196 is replaced with N
+    # In COSMIC we want the complete mutation change so NKERQ*
 
     my $downstream_seq = substr($cds_seq, $last_complete_codon > 0 ? $last_complete_codon : 0);
     my $three_prime_utr = $tr->three_prime_utr ? $tr->three_prime_utr->seq() : '';
@@ -141,11 +149,15 @@ sub run {
     }
 
     my $new_pep = $codon_seq->translate(undef, undef, undef, $codon_table)->seq();
+    # Now masked out in e!114 https://github.com/Ensembl/VEP_plugins/commit/2ef83c1ada1778f90edb799570734de230506d32#diff-9d787ea2c628d426599ef49f2a88a831c0255f588816b7643643a23b89e5329eL134
+    # But we do need it for returning the Protein mutation change.
     $new_pep =~ s/\*.*//;
     my $pep_with_var = $codon_seq_full->translate(undef, undef, undef, $codon_table)->seq();
     $pep_with_var =~ s/\*.*//;
 
     # bh4 - Trim the peptide to start with the first _changed_ amino acid (as per HGVS recommendations)
+    # 93 code change:
+    # TODO add an example since this code is not run every time
     my $ref_cds_seq = substr $original_cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
     my $ref_cds = Bio::Seq->new(-seq => $ref_cds_seq, -moltype => 'dna', -alphabet => 'dna');
     my $ref_peptide = $ref_cds->translate(undef, undef, undef, $codon_table)->seq;
@@ -165,12 +177,6 @@ sub run {
     my $translation = defined($tr->{_variation_effect_feature_cache}->{peptide})
                     ? $tr->{_variation_effect_feature_cache}->{peptide}
                     : $tr->translation->seq;
-
-    # tm6 - We need to use unshifted coordinates to match previous releases ProteinLengthChange
-    my ($pep_start, $pep_end) = ($tv->translation_start_unshifted, $tv->translation_end_unshifted);
-
-    my $new_length = ($pep_start < $pep_end ? $pep_start : $pep_end) + length($new_pep);
-
     return {
         DownstreamProtein   => $new_pep,
         ProteinLengthChange => length($pep_with_var) - length($translation),
