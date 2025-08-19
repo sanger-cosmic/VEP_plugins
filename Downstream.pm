@@ -154,10 +154,16 @@ sub run {
     $new_pep =~ s/\*.*//;
     my $pep_with_var = $codon_seq_full->translate(undef, undef, undef, $codon_table)->seq();
     $pep_with_var =~ s/\*.*//;
-
     # bh4 - Trim the peptide to start with the first _changed_ amino acid (as per HGVS recommendations)
-    # 93 code change:
-    # TODO add an example since this code is not run every time
+    # 93 code change
+    # For example COSM4575219, p.T222Ifs*61 (see ProteinFormatter test: ins_frameshift_3)
+    # Without this change AA MT: ANNIVLATISQEPFILETQTTSATKSASCHFVNESQTL
+    # After this code AA MT: NNIVLATISQEPFILETQTTSATKSASCHFVNESQTL
+    # See below, Mutation does not change A, so we remove it from the AA MT with the code below
+    #WT	CDS:847	    GCA	ACA
+	#AA: 283	    A	T
+    #MUT		    GCC	AAC
+	#	            A	N
     my $ref_cds_seq = substr $original_cds_seq, $last_complete_codon;	# get the translation of the reference cds from the location of the variation
     my $ref_cds = Bio::Seq->new(-seq => $ref_cds_seq, -moltype => 'dna', -alphabet => 'dna');
     my $ref_peptide = $ref_cds->translate(undef, undef, undef, $codon_table)->seq;
