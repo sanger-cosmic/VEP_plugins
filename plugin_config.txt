@@ -1527,7 +1527,7 @@ my $VEP_PLUGIN_CONFIG = {
       "helptip" => "Adds metadata to variants to be loaded into the COSMIC database",
       "available" => 0,
       "enabled" => 0,
-      "plugin_url" => "https://raw.githubusercontent.com/sanger-cosmic/VEP_plugins/release/106/DIAS.pm",
+      "plugin_url" => "https://raw.githubusercontent.com/sanger-cosmic/VEP_plugins/release/116/DIAS.pm",
       "section" => "Variant data"
     },
 
